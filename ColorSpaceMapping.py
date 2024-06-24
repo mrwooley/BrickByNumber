@@ -9,7 +9,26 @@ import json
 import numpy as np
 
 
+def arctan(y, x):
+    val = np.degrees(np.arctan2(y, x))
+    val = np.where(val < 0, val + 360, val)
+    return val
+
+
+def sine(angle):
+    val = np.sin(np.radians(angle))
+    return val
+
+
+def cosine(angle):
+    val = np.cos(np.radians(angle))
+    return val
+
+
 def save_array(arr, save_name):
+    if '.npy' not in save_name:
+        save_name = save_name+'.npy'
+
     with open(save_name, 'wb') as f:
         np.save(f, arr)
 
@@ -46,7 +65,7 @@ class ColorSpaceMapping:
         :return: 256x256x256 matrix
         """
         rgb_matrix = np.meshgrid(range(256), range(256), range(256),
-                                    indexing='ij')
+                                 indexing='ij')
         if color_space == 'rgb':
             return rgb_matrix
         elif color_space == 'xyz':
@@ -64,7 +83,7 @@ class ColorSpaceMapping:
 
         :param color_space: options are 'rgb', 'xyz', 'lab'
         :param calc: options are 'euclidean', 'adjusted-euclidean',
-        and 'ciede200'
+        and 'ciede2000'
         :return: function for the color difference formula
         """
         if color_space == 'rgb' and calc == 'adjusted-euclidean':
@@ -85,7 +104,7 @@ class ColorSpaceMapping:
 
         :param color_space: options are 'rgb', 'xyz', 'lab'
         :param calc: options are 'euclidean', 'adjusted-euclidean',
-        and 'ciede200'
+        and 'ciede2000'
         :return:
         """
         color_map = self.convert_rgb(color_space)
@@ -94,8 +113,8 @@ class ColorSpaceMapping:
                                                                calc)
 
         mapped_color_space = [np.zeros((256, 256, 256)),
-                           np.zeros((256, 256, 256)),
-                           np.zeros((256, 256, 256))]
+                              np.zeros((256, 256, 256)),
+                              np.zeros((256, 256, 256))]
         prev_dist = np.ones((256, 256, 256)) * np.inf
         for ind in range(len(rgb_map)):
             print(f'{ind + 1} of {len(rgb_map)}')
@@ -155,7 +174,7 @@ class ColorSpaceMapping:
         # Standard Illuminant D65
         xn, yn, zn = 95.0489, 100, 108.8840
 
-        s_xyz = xyz / np.array([xn, yn, zn])
+        s_xyz = (xyz.transpose() / np.array([xn, yn, zn])).transpose()
         delta = 6 / 29
 
         sxyz_p = np.where(s_xyz > delta ** 3,
@@ -188,20 +207,21 @@ class ColorSpaceMapping:
         C1_p = np.sqrt(a1_p ** 2 + lab1[2] ** 2)
         C2_p = np.sqrt(a2_p ** 2 + lab2[2] ** 2)
 
-        h1_p = np.where(np.logical_and(lab1[2] == 0, a1_p == 0), 0, np.degrees(
-            np.arctan2(lab1[2], a1_p)))
-        h2_p = np.where(np.logical_and(lab2[2] == 0, a2_p == 0), 0, np.degrees(
-            np.arctan2(lab2[2], a2_p)))
+        h1_p = np.where(np.logical_and(lab1[2] == 0, a1_p == 0), 0,
+                        arctan(lab1[2], a1_p))
+        h2_p = np.where(np.logical_and(lab2[2] == 0, a2_p == 0), 0,
+                        arctan(lab2[2], a2_p))
 
         # Calculate delta L, C, and H
         L_delta_p = lab2[0] - lab1[0]
         C_delta_p = C2_p - C1_p
+
         h_delta = np.where(abs(h2_p - h1_p) <= 180, h2_p - h1_p,
                            (h2_p - h1_p) + 360)
         h_delta = np.where((h2_p - h1_p) > 180, (h2_p - h1_p) - 360, h_delta)
         h_delta = np.where(C1_p * C2_p == 0, 0, h_delta)
 
-        H_delta_p = 2 * np.sqrt(C1_p * C2_p) * np.degrees(np.sin(h_delta / 2))
+        H_delta_p = 2 * np.sqrt(C1_p * C2_p) * sine(h_delta / 2)
 
         # Calculate color difference
         L_bar_p = (lab1[0] + lab2[0]) / 2
@@ -214,18 +234,17 @@ class ColorSpaceMapping:
             (h1_p + h2_p - 360) / 2, h_bar_p)
         h_bar_p = np.where(C1_p * C2_p == 0, h1_p + h2_p, h_bar_p)
 
-        T = 1 - 0.17 * np.degrees(np.cos(h_bar_p - 30)) + 0.24 * np.degrees(
-            np.cos(
-                2 * h_bar_p)) + 0.32 * np.degrees(
-            np.cos(3 * h_bar_p + 6)) - 0.2 * np.degrees(
-            np.cos(4 * h_bar_p - 63))
+        T = 1 - 0.17 * cosine(h_bar_p - 30) + 0.24 * cosine(
+            2 * h_bar_p) + 0.32 * cosine(3 * h_bar_p + 6) - 0.2 * cosine(
+            4 * h_bar_p - 63)
 
         theta_delta = 30 * np.exp(-((h_bar_p - 275) / 25) ** 2)
         R_C = 2 * np.sqrt(C_bar_p ** 7 / (C_bar_p ** 7 + 25 ** 7))
-        S_L = 1 + 0.015 * (L_bar_p - 50) ** 2 / np.sqrt(20 + (L_bar_p - 50))
+        S_L = 1 + 0.015 * (L_bar_p - 50) ** 2 / np.sqrt(
+            20 + (L_bar_p - 50) ** 2)
         S_C = 1 + 0.045 * C_bar_p
         S_H = 1 + 0.015 * C_bar_p * T
-        R_T = -np.degrees(np.sin(2 * theta_delta)) * R_C
+        R_T = -sine(2 * theta_delta) * R_C
 
         k_L = 1
         k_C = 1
@@ -260,7 +279,6 @@ class ColorSpaceMapping:
 
         :param color1:
         :param color2:
-        :param adjusted:
         :return:
         """
         dist = np.sqrt((color2[0] - color1[0]) ** 2 +
@@ -270,24 +288,37 @@ class ColorSpaceMapping:
         return dist
 
 
-
 if __name__ == '__main__':
     # pieces_filename = 'BrickLinkColors.xlsx'
     # df = pd.read_excel(pieces_filename, usecols="C:D",
     #                    names=['hex', 'name'])
     #
     # df['rgb'] = df.hex.map(lambda color: ImageColor.getrgb(color))
-    # df.to_json('bricklink_colormap.json')
+    # df.to_json('bricklink.json')
 
-    colormap_json = 'bricklink_colormap.json'
+    colormap_json = 'brick-colors/bricklink.json'
     with open(colormap_json, 'r') as f:
         colormap = json.load(f)
 
     rgb_map = np.array(list(colormap['rgb'].values()))
 
     cs = ColorSpaceMapping(rgb_map)
+    print("Running RGB adjusted euclidean....")
     rgb_adjusted_euclidean_mapping = cs.remap_color_space('rgb', calc='adjusted-euclidean')
+    save_array(rgb_adjusted_euclidean_mapping, "bricklink-rgb.npy-adj")
+
+    print("Running RGB euclidean....")
     rgb_euclidean_mapping = cs.remap_color_space('rgb')
+    save_array(rgb_euclidean_mapping, "bricklink-rgb.npy")
+
+    print("Running XYZ euclidean....")
     xyz_euclidean_mapping = cs.remap_color_space('xyz')
+    save_array(xyz_euclidean_mapping, "bricklink-xyz.npy")
+
+    print("Running LAB euclidean....")
     lab_euclidean_mapping = cs.remap_color_space('lab')
+    save_array(lab_euclidean_mapping, "bricklink-lab.npy")
+
+    print("Running CIEDE2000....")
     lab_ciede2000_mapping = cs.remap_color_space('lab', calc='ciede2000')
+    save_array(lab_ciede2000_mapping, "bricklink-ciede2000.npy.npy")
