@@ -9,6 +9,7 @@ import math
 import matplotlib.pyplot as plt
 import re
 
+
 class BrickByNumber:
     def __init__(self, img_file, color_space='bricklink-rgb'):
         self._color_space = color_space
@@ -22,9 +23,9 @@ class BrickByNumber:
 
         self.img = img
 
-    def recolor_image(self, show=True):
+    def recolor_image(self, img, preview=True):
         # Recolor image
-        img_rgb = np.asarray(self.img)
+        img_rgb = np.asarray(img)
         img_size = img_rgb.shape
         old_color = img_rgb.reshape(img_size[0] * img_size[1], 3)
         r, g, b = old_color[:, 0], old_color[:, 1], old_color[:, 2]
@@ -32,25 +33,25 @@ class BrickByNumber:
         recolored_img = Image.fromarray(
             new_color.reshape(img_size).astype(np.uint8))
 
-        if show:
+        if preview:
             recolored_img.show()
 
         return recolored_img
 
     def resize_image(self, img, width=12, preview=True):
         # Resize image
-        resized_img = img.resize((width * 16,
+        img = img.resize((width * 16,
                                   round(img.height / img.width * width * 16)),
                                  Image.NEAREST)
 
-        resized_color = np.asarray(resized_img)
-
         if preview:
-            self.preview(resized_img, resized_color, width)
+            self.preview(img, width)
 
-        return resized_img, resized_color
+        return img
 
-    def preview(self, img, color, width=3, bg_color='black', save=True):
+    def preview(self, img, width=3, bg_color='black', save=True):
+        color = np.asarray(img)
+
         # Plotly Version
         x = range(img.width)
         y = range(img.height)
@@ -77,10 +78,6 @@ class BrickByNumber:
         plt.ylabel('')
         plt.title(f'Img: {self._img_file} Recolor: {self._color_space}')
 
-
-
-
-
         if save:
             img_name = self._img_file
             ind = img_name.rfind('.')
@@ -94,6 +91,6 @@ class BrickByNumber:
 
 
 if __name__ == "__main__":
-    bbn = BrickByNumber('images/nighthawks6.jpg', 'bricklink-ciede2000')
-    recolored_img = bbn.recolor_image(show=False)
-    resized_img, resized_color = bbn.resize_image(recolored_img)
+    bbn = BrickByNumber('images/nighthawks3.jpg', 'bricklink-rgb')
+    resized_img = bbn.resize_image(bbn.img)
+    recolored_img = bbn.recolor_image(resized_img)
